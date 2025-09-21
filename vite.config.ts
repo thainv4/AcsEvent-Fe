@@ -15,4 +15,7 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    outDir: "build", // Thay đổi thư mục output từ 'dist' thành 'build'
+  },
 });

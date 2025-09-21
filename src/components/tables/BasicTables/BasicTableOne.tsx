@@ -10,45 +10,118 @@ import { useEffect, useState } from "react";
 import { AttendanceDto } from "../../../api/dtos";
 import attendanceApi from "../../../api/attendanceApi";
 
+// Helper functions để kiểm tra thời gian
+const isLateCheckIn = (timeString: string): boolean => {
+  if (!timeString) return false;
+  const time = new Date(timeString);
+  const hours = time.getHours();
+  const minutes = time.getMinutes();
+  // Muộn nếu sau 7:30 (7 * 60 + 30 = 450 phút)
+  const timeInMinutes = hours * 60 + minutes;
+  return timeInMinutes > 450; // 7:30 = 450 phút
+};
+
+const isEarlyCheckOut = (timeString: string): boolean => {
+  if (!timeString) return false;
+  const time = new Date(timeString);
+  const hours = time.getHours();
+  const minutes = time.getMinutes();
+  // Sớm nếu trước 16:30 (16 * 60 + 30 = 990 phút)
+  const timeInMinutes = hours * 60 + minutes;
+  return timeInMinutes < 990; // 16:30 = 990 phút
+};
+
 // Define the table data using the interface
 
-export default function BasicTableOne() {
-  const [attendanceData, setAttendanceData] = useState<AttendanceDto[]>([]);
+interface BasicTableOneProps {
+  phongBanId?: number;
+}
 
+export default function BasicTableOne({ phongBanId = 1 }: BasicTableOneProps) {
+  const [attendanceData, setAttendanceData] = useState<AttendanceDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [pagination, setPagination] = useState<{
+    pageIndex: number;
+    pageSize: number;
+    totalPages: number;
+    totalRecords: number;
+  } | null>(null);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        console.log("Fetching attendance data...");
+        console.log("Fetching attendance data for phongBanId:", phongBanId);
         
-        const response = await attendanceApi.getByPhongban(1);
+        const response = await attendanceApi.getByPhongban(phongBanId, currentPage, pageSize);
         console.log("API Response:", response);
         console.log("Response data:", response.data);
 
-        // Check if response has data
+        // Check if response has data with new pagination format
         if (response.data) {
-          // If response.data is already in the correct format (AttendanceDto[])
-          if (Array.isArray(response.data)) {
-            console.log("Direct array format detected");
-            setAttendanceData(response.data);
-          } 
-          // If response.data has nested structure, extract it
-          else if (response.data.success && Array.isArray(response.data.data)) {
-            console.log("Nested success format detected");
+          console.log("Response data structure:", {
+            hasSucceeded: 'succeeded' in response.data,
+            succeededValue: response.data.succeeded,
+            hasData: 'data' in response.data,
+            dataIsArray: Array.isArray(response.data.data),
+            responseKeys: Object.keys(response.data)
+          });
+
+          // Try multiple formats for pagination response
+          // Format 1: succeeded === true
+          if (response.data.succeeded === true && Array.isArray(response.data.data)) {
+            console.log("✅ Pagination format detected (succeeded = true)");
+            const pageInfo = {
+              pageIndex: response.data.pageIndex,
+              pageSize: response.data.pageSize,
+              totalPages: response.data.totalPages,
+              totalRecords: response.data.totalRecords
+            };
+            console.log("Page info:", pageInfo);
+            setPagination(pageInfo);
             setAttendanceData(response.data.data);
           }
-          // Handle other possible formats
+          // Format 2: has data array regardless of succeeded value
+          else if (response.data.data && Array.isArray(response.data.data) && response.data.data.length >= 0) {
+            console.log("✅ Data array found (flexible format)");
+            const pageInfo = {
+              pageIndex: response.data.pageIndex || 1,
+              pageSize: response.data.pageSize || 10,
+              totalPages: response.data.totalPages || 1,
+              totalRecords: response.data.totalRecords || response.data.data.length
+            };
+            console.log("Page info:", pageInfo);
+            setPagination(pageInfo);
+            setAttendanceData(response.data.data);
+          }
+          // Format 3: Legacy direct array format
+          else if (Array.isArray(response.data)) {
+            console.log("✅ Direct array format detected");
+            setAttendanceData(response.data);
+          }
+          // Format 4: Check if succeeded is false
+          else if (response.data.succeeded === false) {
+            console.log("❌ API returned succeeded = false");
+            setAttendanceData([]);
+            setError(response.data.message || "API trả về lỗi");
+          }
+          // Handle unrecognized formats
           else {
-            console.warn("Unrecognized data format:", response.data);
+            console.warn("❌ Unrecognized data format. Response structure:", response.data);
+            console.warn("Keys available:", Object.keys(response.data));
             setAttendanceData([]);
             setError("Dữ liệu không đúng định dạng");
           }
         } else {
-          console.warn("No data in response");
+          console.warn("❌ No data in response");
           setAttendanceData([]);
           setError("Không có dữ liệu");
         }
@@ -62,7 +135,7 @@ export default function BasicTableOne() {
     };
 
     fetchData();
-  }, []);
+  }, [phongBanId, currentPage, pageSize]);
 
   if (loading) {
     return (
@@ -104,33 +177,33 @@ export default function BasicTableOne() {
             <TableRow>
               <TableCell
                 isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="px-5 py-4 font-semibold text-gray-500 text-center text-base dark:text-gray-400"
+              >
+                STT
+              </TableCell>
+              <TableCell
+                isHeader
+                className="px-5 py-4 font-semibold text-gray-500 text-start text-base dark:text-gray-400"
               >
                 Mã chấm công
               </TableCell>
               <TableCell
                 isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="px-5 py-4 font-semibold text-gray-500 text-start text-base dark:text-gray-400"
               >
                 Họ và Tên
-              </TableCell>
-              <TableCell
-                isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
-              >
-                Ngày
               </TableCell>
 
               <TableCell
                 isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="px-5 py-4 font-semibold text-gray-500 text-start text-base dark:text-gray-400"
               >
                 Giờ vào
               </TableCell>
 
               <TableCell
                 isHeader
-                className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
+                className="px-5 py-4 font-semibold text-gray-500 text-start text-base dark:text-gray-400"
               >
                 Giờ ra
               </TableCell>
@@ -142,37 +215,131 @@ export default function BasicTableOne() {
             {attendanceData.map((attendance, index) => (
               <TableRow key={`${attendance.macc}-${index}`}>
                 <TableCell>
-                  <span className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                  <span className="px-4 py-4 text-gray-500 text-center text-base dark:text-gray-400 font-medium">
+                    {index + 1}
+                  </span>
+                </TableCell>
+
+                <TableCell>
+                  <span className="px-4 py-4 text-gray-500 text-start text-base dark:text-gray-400">
                     {attendance.macc}
                   </span>
                 </TableCell>
 
-                <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
+                <TableCell className="px-4 py-4 text-gray-500 text-start text-base dark:text-gray-400">
                   {attendance.name}
                 </TableCell>
 
-                <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                  {new Date(attendance.date).toLocaleDateString("vi-VN")}
+                <TableCell 
+                  className={`px-4 py-4 text-start text-base ${
+                    attendance.firstin && isLateCheckIn(attendance.firstin)
+                      ? 'text-red-600 font-semibold dark:text-red-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  <span 
+                    title={
+                      attendance.firstin && isLateCheckIn(attendance.firstin)
+                        ? 'Vào muộn (sau 7:30)'
+                        : undefined
+                    }
+                  >
+                    {attendance.firstin ? new Date(attendance.firstin).toLocaleTimeString("vi-VN", { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    }) : '-'}
+                  </span>
                 </TableCell>
 
-                <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                  {attendance.firstin ? new Date(attendance.firstin).toLocaleTimeString("vi-VN", { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  }) : '-'}
-                </TableCell>
-
-                <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">
-                  {attendance.lastout ? new Date(attendance.lastout).toLocaleTimeString("vi-VN", { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  }) : '-'}
+                <TableCell 
+                  className={`px-4 py-4 text-start text-base ${
+                    attendance.lastout && isEarlyCheckOut(attendance.lastout)
+                      ? 'text-red-600 font-semibold dark:text-red-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  <span 
+                    title={
+                      attendance.lastout && isEarlyCheckOut(attendance.lastout)
+                        ? 'Ra sớm (trước 16:30)'
+                        : undefined
+                    }
+                  >
+                    {attendance.lastout ? new Date(attendance.lastout).toLocaleTimeString("vi-VN", { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    }) : '-'}
+                  </span>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+      
+      {/* Pagination Controls */}
+      {pagination && (
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between">
+            {/* Records info */}
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Hiển thị {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, pagination.totalRecords)} trên {pagination.totalRecords} bản ghi
+            </div>
+
+            {/* Pagination controls */}
+            <div className="flex items-center space-x-2">
+              {/* Previous button */}
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1 || loading}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  currentPage === 1 || loading
+                    ? 'text-gray-400 cursor-not-allowed dark:text-gray-600'
+                    : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-300 dark:hover:text-blue-400 dark:hover:bg-blue-900/20'
+                }`}
+              >
+                Trước
+              </button>
+
+              {/* Page numbers */}
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                  const pageNum = i + 1;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      disabled={loading}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        pageNum === currentPage
+                          ? 'bg-blue-600 text-white'
+                          : loading
+                          ? 'text-gray-400 cursor-not-allowed dark:text-gray-600'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-300 dark:hover:text-blue-400 dark:hover:bg-blue-900/20'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === pagination.totalPages || loading}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  currentPage === pagination.totalPages || loading
+                    ? 'text-gray-400 cursor-not-allowed dark:text-gray-600'
+                    : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-300 dark:hover:text-blue-400 dark:hover:bg-blue-900/20'
+                }`}
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
