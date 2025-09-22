@@ -1,5 +1,5 @@
 export interface AttendanceDto {
-  macc: string;
+  manv: string;
   name: string;
   date: string;
   firstin: string | null;

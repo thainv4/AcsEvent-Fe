@@ -42,7 +42,7 @@ export default function BasicTableOne({ phongBanId = 1 }: BasicTableOneProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize] = useState(15);
   const [pagination, setPagination] = useState<{
     pageIndex: number;
     pageSize: number;
@@ -94,7 +94,7 @@ export default function BasicTableOne({ phongBanId = 1 }: BasicTableOneProps) {
             console.log("✅ Data array found (flexible format)");
             const pageInfo = {
               pageIndex: response.data.pageIndex || 1,
-              pageSize: response.data.pageSize || 10,
+              pageSize: response.data.pageSize || 15,
               totalPages: response.data.totalPages || 1,
               totalRecords: response.data.totalRecords || response.data.data.length
             };
@@ -185,7 +185,7 @@ export default function BasicTableOne({ phongBanId = 1 }: BasicTableOneProps) {
                 isHeader
                 className="px-5 py-4 font-semibold text-gray-500 text-start text-base dark:text-gray-400"
               >
-                Mã chấm công
+                Mã nhân viên
               </TableCell>
               <TableCell
                 isHeader
@@ -213,7 +213,7 @@ export default function BasicTableOne({ phongBanId = 1 }: BasicTableOneProps) {
           {/* Table Body */}
           <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
             {attendanceData.map((attendance, index) => (
-              <TableRow key={`${attendance.macc}-${index}`}>
+              <TableRow key={`${attendance.manv}-${index}`}>
                 <TableCell>
                   <span className="px-4 py-4 text-gray-500 text-center text-base dark:text-gray-400 font-medium">
                     {index + 1}
@@ -222,7 +222,7 @@ export default function BasicTableOne({ phongBanId = 1 }: BasicTableOneProps) {
 
                 <TableCell>
                   <span className="px-4 py-4 text-gray-500 text-start text-base dark:text-gray-400">
-                    {attendance.macc}
+                    {attendance.manv}
                   </span>
                 </TableCell>
 
