@@ -1,8 +1,9 @@
 import axios, { AxiosResponse, InternalAxiosRequestConfig, AxiosHeaders } from "axios";
 
+const baseURL = import.meta.env.VITE_API_BASE_URL ;
+
 const axiosClient = axios.create({
-    // baseURL: "http://192.168.200.56:5000/api",
-    baseURL: "http://localhost:5021/api",
+    baseURL,
     headers: {
         "Content-Type": "application/json",
     },
@@ -10,11 +11,11 @@ const axiosClient = axios.create({
 
 axiosClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem("token");
-    if (token) {
-        if (config.headers && typeof config.headers.set === "function") {
-            (config.headers as AxiosHeaders).set("Authorization", `Bearer ${token}`);
-        } else if (config.headers) {
-            config.headers["Authorization"] = `Bearer ${token}`;
+    if (token && config.headers) {
+        if (config.headers instanceof AxiosHeaders) {
+            config.headers.set("Authorization", `Bearer ${token}`);
+        } else {
+            (config.headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
         }
     }
     return config;
@@ -22,7 +23,13 @@ axiosClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 axiosClient.interceptors.response.use(
     (response: AxiosResponse) => response,
-    (error) => Promise.reject(error)
+    (error: unknown) => {
+        if (error instanceof Error) {
+            return Promise.reject(error);
+        }
+        const message = typeof error === "string" ? error : "Request failed";
+        return Promise.reject(new Error(message));
+    }
 );
 
 export default axiosClient;

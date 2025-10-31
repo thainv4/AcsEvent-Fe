@@ -2,8 +2,8 @@ export interface AttendanceDto {
   manv: string;
   name: string;
   date: string;
-  firstin: string | null;
-  lastout: string | null;
+  firstIn: string | null;
+  lastOut: string | null;
 }
 
 export interface AttendanceApiResponse {
